@@ -281,7 +281,7 @@ describe('buildToolView file edit diffs', () => {
       patchDiff
     )
 
-    expect(view.title).toBe('demo.ts')
+    expect(view.title).toBe('src/demo.ts')
     expect(view.subtitle).toBe('src/demo.ts')
     expect(view.detail).toBe('')
     expect(view.inlineDiff).toBe(patchDiff)
@@ -297,7 +297,7 @@ describe('buildToolView file edit diffs', () => {
       ''
     )
 
-    expect(view.title).toBe('demo.ts')
+    expect(view.title).toBe('src/demo.ts')
     expect(view.subtitle).toBe('src/demo.ts')
     expect(view.detail).toBe('')
   })
@@ -582,5 +582,29 @@ describe('buildToolView memory status', () => {
 
     expect(view.status).toBe('warning')
     expect(view.subtitle).toContain('Memory is full')
+  })
+})
+
+describe('buildToolView file-edit titles', () => {
+  const edit = (args: Record<string, unknown>, result: Record<string, unknown> = { success: true }) =>
+    buildToolView(part({ args, result, toolName: 'write_file' }), '')
+
+  it('shows the full display path, not just the basename', () => {
+    const view = edit({ path: '/Users/me/Workspace/mapkit/mskit/src/foo.py' })
+
+    expect(view.title).toBe('~/Workspace/mapkit/mskit/src/foo.py')
+  })
+
+  it('keeps a repo-relative path as given', () => {
+    expect(edit({ path: 'src/agent/loop.py' }).title).toBe('src/agent/loop.py')
+  })
+
+  it('falls back to the reported path when args carry none', () => {
+    const view = buildToolView(
+      part({ args: {}, result: { success: true, path: '/Users/me/app/main.rs' }, toolName: 'patch' }),
+      ''
+    )
+
+    expect(view.title).toBe('~/app/main.rs')
   })
 })

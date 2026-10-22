@@ -10,6 +10,7 @@ import {
   Fragment,
   type PropsWithChildren,
   type ReactNode,
+  useCallback,
   useContext,
   useEffect,
   useMemo,
@@ -45,9 +46,12 @@ import { useI18n } from '@/i18n'
 import { connectorCalls, mcpTargets } from '@/lib/connector-tools'
 import { PrettyLink, LinkifiedText as SharedLinkifiedText, urlSlugTitleLabel } from '@/lib/external-link'
 import { AlertCircle, CheckCircle2 } from '@/lib/icons'
+import { normalizeOrLocalPreviewTarget } from '@/lib/local-preview'
 import { toolResultRecord } from '@/lib/tool-result-metadata'
 import { useEnterAnimation } from '@/lib/use-enter-animation'
 import { cn } from '@/lib/utils'
+import { notifyError } from '@/store/notifications'
+import { openPreview } from '@/store/preview'
 import { recordPreviewArtifact } from '@/store/preview-status'
 import { sessionApprovalRequest } from '@/store/prompts'
 import { $showToolActivity } from '@/store/tool-activity'
@@ -302,16 +306,23 @@ function LinkifiedText({ className, text }: { className?: string; text: string }
 function ToolTitle({
   isPending,
   legendary,
+  onOpenFile,
   status,
   title,
   titleAction
 }: {
   isPending: boolean
   legendary?: boolean
+  /** Edit cards: open the touched file in the preview rail. The disclosure
+   *  header is already a <button>, so this cannot nest one — a role=link span
+   *  with keyboard activation keeps the row's own click intact. */
+  onOpenFile?: () => void
   status: ToolStatus
   title: string
   titleAction?: ToolTitleAction
 }) {
+  const text = isPending && titleAction ? undefined : title
+
   return (
     <FadeText
       className={cn(
@@ -328,8 +339,31 @@ function ToolTitle({
           <span className="shimmer">{titleAction.text}</span>
           {titleAction.suffix}
         </>
+      ) : onOpenFile ? (
+        <span
+          className="cursor-pointer rounded-sm hover:underline focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+          onClick={event => {
+            // The header toggles the diff open; opening the file is the intent.
+            event.stopPropagation()
+            onOpenFile()
+          }}
+          onKeyDown={event => {
+            if (event.key !== 'Enter' && event.key !== ' ') {
+              return
+            }
+
+            event.preventDefault()
+            event.stopPropagation()
+            onOpenFile()
+          }}
+          role="link"
+          tabIndex={0}
+          title={text}
+        >
+          {text}
+        </span>
       ) : (
-        title
+        text
       )}
     </FadeText>
   )
@@ -481,6 +515,28 @@ function ToolEntry({ part }: ToolEntryProps) {
       recordPreviewArtifact(sessionId, previewTarget, $sessionCwd.get() || '', $sessionStoredId.get() ?? sessionId)
     }
   }, [$sessionCwd, $sessionRuntimeId, $sessionStoredId, $sessionMessages, messageId, previewTarget, view.status])
+
+  // An edit card's path opens the file itself in the preview rail — the
+  // shortcut the review pane already gives a changed file, without leaving the
+  // chat. Resolved through the same normalizer every other preview opener
+  // uses, so a remote-backend path yields a gateway tab instead of a broken one.
+  const openFilePreview = useCallback(() => {
+    const target = view.subtitle
+
+    if (!target) {
+      return
+    }
+
+    void normalizeOrLocalPreviewTarget(target, $sessionCwd.get() || undefined)
+      .then(preview => {
+        if (!preview) {
+          throw new Error(`Could not open preview target: ${target}`)
+        }
+
+        openPreview(preview)
+      })
+      .catch((error: unknown) => notifyError(error, t.preview.unavailable))
+  }, [$sessionCwd, t.preview.unavailable, view.subtitle])
 
   const detailSections = useMemo(() => {
     if (!view.detail) {
@@ -647,6 +703,7 @@ function ToolEntry({ part }: ToolEntryProps) {
             <ToolTitle
               isPending={isPending}
               legendary={memoryLegendary}
+              onOpenFile={isFileEdit && view.subtitle ? openFilePreview : undefined}
               status={view.status}
               title={view.title}
               titleAction={view.titleAction}

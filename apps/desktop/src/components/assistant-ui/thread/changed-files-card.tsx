@@ -65,7 +65,7 @@ export const ChangedFilesCard: FC<{ parts: readonly unknown[] }> = ({ parts }) =
               type="button"
             >
               <FileTypeIcon className="shrink-0 text-(--ui-text-tertiary)" path={file.path} size="0.875rem" />
-              <span className="min-w-0 flex-1 truncate text-(--ui-text-secondary)">{file.name}</span>
+              <span className="min-w-0 flex-1 truncate text-(--ui-text-secondary)">{displayPath(file.path)}</span>
               <DiffCount added={file.added} removed={file.removed} />
             </button>
           </Tip>

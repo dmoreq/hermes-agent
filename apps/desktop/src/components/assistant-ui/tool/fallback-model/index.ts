@@ -1,6 +1,7 @@
 import { stripAnsi } from '@hermes/shared/ansi'
 
 import { type ToolTitleKey, translateNow } from '@/i18n'
+import { displayPath } from '@/lib/display-path'
 import { normalizeExternalUrl } from '@/lib/external-link'
 import { isFileMediaPath, mediaKind } from '@/lib/media'
 import { summarizeShellCommand } from '@/lib/summarize-command'
@@ -1473,7 +1474,9 @@ function dynamicTitle(
     const path = fileEditPath(args, result)
 
     if (path) {
-      return { title: fileEditBasename(path) }
+      // Full path, tildified: a bare basename cannot tell you WHICH file was
+      // touched, and several edits in one turn then read identically.
+      return { title: displayPath(path) }
     }
   }
 
